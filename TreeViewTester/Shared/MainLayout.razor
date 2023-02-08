@@ -1,0 +1,157 @@
+﻿@using TreeViewTester.Data
+@inherits LayoutComponentBase
+
+<h1>TreeView Test V1.2.0</h1>
+<TreeView Nodes="treeNodes" 
+    TNode="Node"
+    GetChildNodes="@(item => item.Children)"
+    HasChildNodes="@(item => item.Children?.Any() == true)"
+    SelectedNode="@selectedNode"
+    @bind-ExpandedNodes="expandedNodes"
+    SelectedNodeChanged="OnSelectedNodeChanged"
+    SelectedNodeStyling="@((item, style) => {style.Background = Background.Primary; style.TextColor = TextColor.White; })"
+    Context="treeContext">
+    <NodeContent>
+        @if (treeContext.Type == "d")
+        {
+            <Icon Name="IconName.CalendarDay" Margin="Margin.Is1.FromEnd" />
+        }
+        else
+        {
+            <Icon Name="IconName.Grin" Margin="Margin.Is1.FromEnd" />
+        }
+        @treeContext.Text
+    </NodeContent>
+</TreeView>
+
+@code {
+    // Data
+    List<TimeCard> timeCards;
+
+    // Tree Variables
+    Int64 lastDateNodeId = -1;
+    List<Node> treeNodes;
+    Node selectedNode = null;
+    IList<Node> expandedNodes = new List<Node>();
+
+    DateTime? selectedDateWorked;
+
+    protected override Task OnParametersSetAsync()
+    {
+        selectedDateWorked = new DateTime(2023, 1, 1);
+
+        timeCards = new List<TimeCard>() {
+            new TimeCard(1, 1, "John Doe", new DateTime(2023, 1, 1)),
+            new TimeCard(2, 2, "Jane Doe", new DateTime(2023, 1, 1)),
+            new TimeCard(3, 3, "James Bond", new DateTime(2023, 1, 1)),
+            new TimeCard(4, 1, "John Doe", new DateTime(2023, 1, 2)),
+            new TimeCard(5, 2, "Jane Doe", new DateTime(2023, 1, 2)),
+            new TimeCard(6, 1, "John Doe", new DateTime(2023, 1, 3))
+        };
+
+        treeNodes = LoadTree();
+        if (treeNodes != null && treeNodes.Count > 0)
+        {
+            selectedNode = treeNodes[0];
+            expandedNodes.Add(selectedNode);
+        }
+
+        return base.OnParametersSetAsync();
+    }
+
+    private void OnSelectedNodeChanged()
+    {
+    }
+
+    private List<Node> LoadTree()
+    {
+        DateTime prevDate = DateTime.MinValue;
+        List<Node> dateNodes = new List<Node>();
+        Node parentDateNode = null;
+
+        foreach (TimeCard tc in timeCards)
+        {
+            if (tc.CardDate != prevDate)
+            {
+                if (parentDateNode != null)
+                {
+                    dateNodes.Add(parentDateNode);
+                }
+                parentDateNode = new Node(++lastDateNodeId, "d", tc.CardDate.ToString("yyyy-MM-dd"));
+                prevDate = tc.CardDate;
+            }
+            Node tcNode = new Node(tc.Id, "t", tc.Name);
+            parentDateNode.AddChild(tcNode);
+        }
+        if (parentDateNode != null)
+        {
+            dateNodes.Add(parentDateNode);
+        }
+
+        return dateNodes;
+    }
+
+    Node FindNode(Int64 id, String type)
+    {
+        if (treeNodes == null)
+        {
+            return null;
+        }
+        NodeIdSearch nids = new NodeIdSearch(id, type);
+        int i = treeNodes.FindIndex(nids.Equals);
+        return treeNodes[i];
+    }
+    Node FindChildNode(Int64 childId)
+    {
+        if (treeNodes == null)
+        {
+            return null;
+        }
+
+        // Find the parent
+        NodeIdSearchByText nst = new NodeIdSearchByText(selectedDateWorked.Value.ToString("yyyy-MM-dd"));
+        int pId = treeNodes.FindIndex(nst.Equals);
+
+        if (pId >= 0)
+        {
+            // Parent node exists, so search for child node
+            NodeIdSearch nids = new NodeIdSearch(childId, "t");
+            int i = treeNodes[pId].Children.FindIndex(nids.Equals);
+            if (i >= 0)
+            {
+                return treeNodes[pId].Children[i];
+            }
+        }
+
+        // Find the child of the parent
+        return null;
+    }
+    public class NodeIdSearch
+    {
+        String _nodeID;
+        public NodeIdSearch(Int64 id, String type)
+        {
+            _nodeID = String.Format("{0}{1}", type, id);
+        }
+        public NodeIdSearch(String nodeId)
+        {
+            _nodeID = nodeId;
+        }
+        public bool Equals(Node n)
+        {
+            return (n.Id == _nodeID);
+        }
+    }
+    public class NodeIdSearchByText
+    {
+        String _text;
+        public NodeIdSearchByText(String text)
+        {
+            _text = text;
+        }
+        public bool Equals(Node n)
+        {
+            return (n.Text == _text);
+        }
+    }
+}
